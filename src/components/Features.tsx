@@ -1,5 +1,4 @@
-// We will use icons from a popular library called 'lucide-react' later.
-// For now, we'll use simple placeholders (e.g., "ICON").
+import { Zap, CheckCircle, BarChart2 } from 'lucide-react'; // Import the icons you want to use
 
 export default function Features() {
   return (
@@ -13,10 +12,11 @@ export default function Features() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
 
-          {/* Feature 1 */}
+          {/* Feature 1: Automation */}
           <div className="flex flex-col items-center">
+            {/* Replace "A" with Zap icon */}
             <div className="bg-blue-100 text-blue-600 rounded-full h-16 w-16 flex items-center justify-center font-bold text-2xl mb-4">
-              A
+              <Zap size={32} /> {/* Using Zap icon */}
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">Automation</h3>
             <p className="text-gray-600">
@@ -24,10 +24,11 @@ export default function Features() {
             </p>
           </div>
 
-          {/* Feature 2 */}
+          {/* Feature 2: Compliance */}
           <div className="flex flex-col items-center">
+            {/* Replace "C" with CheckCircle icon */}
             <div className="bg-green-100 text-green-600 rounded-full h-16 w-16 flex items-center justify-center font-bold text-2xl mb-4">
-              C
+              <CheckCircle size={32} /> {/* Using CheckCircle icon */}
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">Compliance</h3>
             <p className="text-gray-600">
@@ -35,10 +36,11 @@ export default function Features() {
             </p>
           </div>
 
-          {/* Feature 3 */}
+          {/* Feature 3: Insights */}
           <div className="flex flex-col items-center">
+            {/* Replace "I" with BarChart2 icon */}
             <div className="bg-purple-100 text-purple-600 rounded-full h-16 w-16 flex items-center justify-center font-bold text-2xl mb-4">
-              I
+              <BarChart2 size={32} /> {/* Using BarChart2 icon */}
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">Insights</h3>
             <p className="text-gray-600">
