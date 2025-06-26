@@ -1,8 +1,9 @@
-import { BarChart2, Banknote, ClipboardCheck, Users } from 'lucide-react'; // Import icons for modules
+import { BarChart2, Banknote, ClipboardCheck, Users } from 'lucide-react';
+import Link from 'next/link'; // <--- Import Link
 
 export default function Modules() {
   return (
-    <section className="w-full bg-[#F8F9FA] py-16 md:py-24"> {/* Light grey background for contrast */}
+    <section className="w-full bg-[#F8F9FA] py-16 md:py-24">
       <div className="container mx-auto px-8 text-center">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
           Our Core Modules
@@ -12,8 +13,8 @@ export default function Modules() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
 
-          {/* Module 1: GTAS */}
-          <div className="flex flex-col items-center p-6 bg-white rounded-lg shadow-md">
+          {/* Module 1: GTAS - NOW CLICKABLE! */}
+          <Link href="/gtas-validator" className="flex flex-col items-center p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
             <div className="bg-[#3A7CA5] text-white rounded-full h-16 w-16 flex items-center justify-center mb-4">
               <BarChart2 size={32} /> {/* GTAS icon */}
             </div>
@@ -21,9 +22,9 @@ export default function Modules() {
             <p className="text-gray-600">
               Automate the reconciliation and validation of Governmentwide Treasury Account Symbol (GTAS) trial balances.
             </p>
-          </div>
+          </Link>
 
-          {/* Module 2: CARS */}
+          {/* Module 2: CARS (unchanged for now) */}
           <div className="flex flex-col items-center p-6 bg-white rounded-lg shadow-md">
             <div className="bg-[#3A7CA5] text-white rounded-full h-16 w-16 flex items-center justify-center mb-4">
               <Banknote size={32} /> {/* CARS icon */}
@@ -34,7 +35,7 @@ export default function Modules() {
             </p>
           </div>
 
-          {/* Module 3: SBR + SF-133 */}
+          {/* Module 3: SBR + SF-133 (unchanged for now) */}
           <div className="flex flex-col items-center p-6 bg-white rounded-lg shadow-md">
             <div className="bg-[#3A7CA5] text-white rounded-full h-16 w-16 flex items-center justify-center mb-4">
               <ClipboardCheck size={32} /> {/* SBR + SF-133 icon */}
@@ -45,7 +46,7 @@ export default function Modules() {
             </p>
           </div>
 
-          {/* Module 4: IntraGov */}
+          {/* Module 4: IntraGov (unchanged for now) */}
           <div className="flex flex-col items-center p-6 bg-white rounded-lg shadow-md">
             <div className="bg-[#3A7CA5] text-white rounded-full h-16 w-16 flex items-center justify-center mb-4">
               <Users size={32} /> {/* IntraGov icon */}
