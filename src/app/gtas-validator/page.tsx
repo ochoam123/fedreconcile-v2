@@ -4,12 +4,19 @@ import { useState } from 'react';
 import Header from '../../components/Header'; // Adjust path if Header is not one level up from app
 import Footer from '../../components/Footer'; // Adjust path if Footer is not one level up from app
 
+interface ValidationResults {
+  success: boolean;
+  message: string;
+  gtasFileName?: string; // These are optional, as they might not always be present (e.g., on failure)
+  erpFileName?: string;
+  exceptionReportUrl?: string;
+  fbdiJournalUrl?: string;
+}
 export default function GtasValidatorPage() {
   const [gtasFile, setGtasFile] = useState<File | null>(null);
   const [erpFile, setErpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<any>(null); // To store results from the API
-
+const [results, setResults] = useState<ValidationResults | null>(null); // Updated line
   const handleGtasFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       setGtasFile(event.target.files[0]);
