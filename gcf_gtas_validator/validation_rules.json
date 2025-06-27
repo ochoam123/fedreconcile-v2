@@ -1,0 +1,32 @@
+[
+    {
+        "Validation Number": "VAL0030",
+        "Validation Type": "USSGL-Level",
+        "Severity": "Fatal",
+        "Description": "USSGL Account or TAS must be valid.",
+        "Edit Number": "3",
+        "Logic Source": "validation_logic.py -> gtas_checks()",
+        "Edit Logic": "USSGL Account or TAS is missing or null.",
+        "Edit Message": "Missing required field: TAS or USSGL_ACCOUNT."
+    },
+    {
+        "Validation Number": "VAL0100",
+        "Validation Type": "USSGL-Level",
+        "Severity": "Fatal",
+        "Description": "Canceled TAS (starts with 'X') with USSGL Account 101000 must have a zero balance.",
+        "Edit Number": "4",
+        "Logic Source": "validation_logic.py -> gtas_checks()",
+        "Edit Logic": "TAS starts with 'X' AND USSGL Account is '101000' AND GTAS Balance is not 0.",
+        "Edit Message": "Canceled TAS must have 0 balance for USSGL 101000."
+    },
+    {
+        "Validation Number": "VAL0110",
+        "Validation Type": "USSGL-Level",
+        "Severity": "Advisory",
+        "Description": "Advisory note for USSGL accounts in the 210000 series.",
+        "Edit Number": "5",
+        "Logic Source": "validation_logic.py -> gtas_checks()",
+        "Edit Logic": "USSGL Account starts with '210'.",
+        "Edit Message": "Advisory: Review liability account."
+    }
+]

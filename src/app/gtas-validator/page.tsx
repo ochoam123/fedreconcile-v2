@@ -1,22 +1,23 @@
-'use client'; // This directive indicates that this component should run on the client-side
+'use client';
 
 import { useState } from 'react';
-import Header from '../../components/Header'; // Adjust path if Header is not one level up from app
-import Footer from '../../components/Footer'; // Adjust path if Footer is not one level up from app
+import Header from '../../components/Header';
+import Footer from '../../components/Footer';
 
+// Define a type for the expected validation results from the API
 interface ValidationResults {
   success: boolean;
   message: string;
-  gtasFileName?: string; // These are optional, as they might not always be present (e.g., on failure)
-  erpFileName?: string;
   exceptionReportUrl?: string;
   fbdiJournalUrl?: string;
 }
+
 export default function GtasValidatorPage() {
   const [gtasFile, setGtasFile] = useState<File | null>(null);
   const [erpFile, setErpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-const [results, setResults] = useState<ValidationResults | null>(null); // Updated line
+  const [results, setResults] = useState<ValidationResults | null>(null); // Using the defined interface
+
   const handleGtasFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       setGtasFile(event.target.files[0]);
@@ -39,36 +40,28 @@ const [results, setResults] = useState<ValidationResults | null>(null); // Updat
     setLoading(true);
     setResults(null);
 
-    // --- Placeholder for API Call ---
-    // In a real scenario, you would send these files to your Python backend API.
-    // For now, we'll simulate a delay and some mock results.
-    console.log('Simulating file upload and validation...');
     const formData = new FormData();
     formData.append('gtas', gtasFile);
     formData.append('erp', erpFile);
 
     try {
-      // Replace this with your actual API endpoint call
-      // const response = await fetch('/api/gtas-validate', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
-      // const data = await response.json();
-      // setResults(data);
-
-      // --- Mocking API response for now ---
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
-      setResults({
-        success: true,
-        exceptionReportUrl: '#', // Placeholder URL for download
-        fbdiJournalUrl: '#',    // Placeholder URL for download
-        message: 'Validation complete. Download reports below.'
+      // --- ACTUAL API Call to your Next.js API Route ---
+      const response = await fetch('/gtas-validator/api', {
+        method: 'POST',
+        body: formData,
       });
-      // --- End Mocking ---
 
-    } catch (error) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Server responded with an error.');
+      }
+
+      const data: ValidationResults = await response.json(); // Cast to our interface
+      setResults(data);
+
+    } catch (error: any) {
       console.error('Validation failed:', error);
-      setResults({ success: false, message: 'Validation failed. Please try again.' });
+      setResults({ success: false, message: `Validation failed: ${error.message || 'Unknown error.'}` });
     } finally {
       setLoading(false);
     }
@@ -76,7 +69,7 @@ const [results, setResults] = useState<ValidationResults | null>(null); // Updat
 
   return (
     <>
-      <Header /> {/* Using the shared Header component */}
+      <Header />
       <main className="min-h-screen bg-gray-50 py-16 md:py-24">
         <div className="container mx-auto px-8 text-center">
           <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 mb-6">
@@ -148,7 +141,7 @@ const [results, setResults] = useState<ValidationResults | null>(null); // Updat
           )}
         </div>
       </main>
-      <Footer /> {/* Using the shared Footer component */}
+      <Footer />
     </>
   );
 }
