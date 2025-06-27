@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 import functions_framework
 
-# --- Import the NEW validator modules ---
+# --- Import the new validator modules ---
 from validators import ussgl_level 
 # --- We will keep the old import for now to handle logic we haven't migrated yet ---
 from validation_logic import validate_and_reconcile, generate_exception_report, generate_fbdi_file, load_data
@@ -18,20 +18,39 @@ try:
     print(f"Successfully loaded {len(validation_rules)} validation rules.")
 except Exception as e:
     validation_rules = []
-    print(f"CRITICAL: Could not load or parse validation_rules.json: {e}")
+    print(f"CRITICAL ERROR: Could not load or parse validation_rules.json: {e}")
 
 @functions_framework.http
 def gtas_validator_http(request):
     """
     HTTP Cloud Function that processes GTAS files.
-    This function has been refactored to use a data-driven validation engine.
+    This version includes CORS headers to allow requests from web browsers.
     """
+    # --- START CORS FIX ---
+    # Set CORS headers for the preflight request
+    if request.method == 'OPTIONS':
+        # Allows GET, POST and OPTIONS requests from any origin with the Content-Type
+        # header and caches preflight response for 3600s
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+
+    # Set CORS headers for the main request
+    headers = {
+        'Access-Control-Allow-Origin': '*'
+    }
+    # --- END CORS FIX ---
+    
     if request.method != 'POST':
-        return ('Method Not Allowed', 405)
+        return ('Method Not Allowed', 405, headers)
 
     request_json = request.get_json(silent=True)
     if not request_json or 'gtas_file_b64' not in request_json:
-        return (json.dumps({"success": False, "message": '"gtas_file_b64" is required.'}), 400)
+        return (json.dumps({"success": False, "message": '"gtas_file_b64" is required.'}), 400, headers)
 
     # Setup temporary file paths
     gtas_temp_path = tempfile.mkstemp(suffix=".csv")[1]
@@ -58,7 +77,6 @@ def gtas_validator_http(request):
             try:
                 if validation_type == 'USSGL-Level':
                     new_errors = ussgl_level.validate(gtas_df, rule)
-                # You can add 'elif' blocks for other categories (e.g., 'TAS-Level') here
                 
                 if new_errors:
                     all_errors.extend(new_errors)
@@ -66,41 +84,34 @@ def gtas_validator_http(request):
                 print(f"ENGINE ERROR executing rule '{rule.get('Validation Number')}': {e}")
         
         print(f"Data-driven validation found {len(all_errors)} issues.")
-        # (Note: The original reconciliation logic in validation_logic.py can be called here if needed)
-        # For now, we will generate the report based on the new engine's findings.
         
-        # --- Generate Exception Report from errors found ---
         if all_errors:
             exception_df = pd.DataFrame(all_errors)
             exception_df.to_csv(exception_output_temp_path, index=False)
         else:
             pd.DataFrame([{"status": "No exceptions found."}]).to_csv(exception_output_temp_path, index=False)
         
-        # --- Prepare Response ---
         exception_report_b64 = None
         if os.path.exists(exception_output_temp_path):
             with open(exception_output_temp_path, 'rb') as f:
                 exception_report_b64 = base64.b64encode(f.read()).decode('utf-8')
         
-        # For now, we will return an empty FBDI file as we phase out the old logic
         fbdi_journal_b64 = base64.b64encode(b"").decode('utf-8')
 
         response_payload = {
             "success": True,
             "message": f"Validation complete. Found {len(all_errors)} potential issues.",
             "exception_report_b64": exception_report_b64,
-            "fbdi_journal_b64": fbdi_journal_b64, # Placeholder
+            "fbdi_journal_b64": fbdi_journal_b64,
             "exception_report_filename": f"exception_report_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv",
-            "fbdi_journal_filename": "" # Placeholder
+            "fbdi_journal_filename": ""
         }
-        return (json.dumps(response_payload), 200, {'Content-Type': 'application/json'})
+        return (json.dumps(response_payload), 200, headers)
 
     except Exception as e:
         print(f"Error in Cloud Function: {e}")
-        return (json.dumps({"success": False, "message": f"Server error: {e}"}), 500)
+        return (json.dumps({"success": False, "message": f"Server error: {e}"}), 500, headers)
     finally:
-        # Clean up temporary files
         for path in [gtas_temp_path, exception_output_temp_path, fbdi_output_temp_path]:
             if os.path.exists(path):
                 os.remove(path)
-
