@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const authorizationHeaderValue = headers.get('Authorization');
     gcfAuthToken = authorizationHeaderValue?.split(' ')[1];
     console.log('Successfully obtained GCF authentication token for Cloud Run invocation.');
-  } catch (gcfAuthError) {
+  } catch (gcfAuthError: unknown) {
     console.error('Error obtaining GCF authentication token for Cloud Run:', gcfAuthError);
     return NextResponse.json({ success: false, message: 'Failed to authenticate to backend service (Cloud Run).' }, { status: 500 });
   }
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     erpTempInputPath = path.join(tempDir, erpFile.name);
     await fsPromises.writeFile(gtasTempInputPath, gtasBuffer);
     await fsPromises.writeFile(erpTempInputPath, erpBuffer);
-    // console.log(`Input files temporarily saved for local review: ${gtasTempInputPath}, ${erpTempInputPath}`); // REMOVED LOG
+    console.log(`Node.js API: Input files saved: ${gtasTempInputPath}, ${erpTempInputPath}`);
 
 
     const pythonApiPayload = {
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     const cloudFnData = await cloudFnResponse.json();
-    // console.log('Cloud Run Service Response Data:', cloudFnData); // REMOVED LOG
+    console.log('Node.js API: Cloud Run Service Response Data:', JSON.stringify(cloudFnData, null, 2));
 
     const exceptionReportB64 = cloudFnData.exceptionReportB64;
     const fbdiJournalB64 = cloudFnData.fbdiJournalB64;
@@ -108,16 +108,20 @@ export async function POST(request: Request) {
     fbdiJournalLocalPath = path.join(tempDir, fbdiJournalFilename);
 
     if (exceptionReportB64) {
-      await fsPromises.writeFile(exceptionReportLocalPath, Buffer.from(exceptionReportB64, 'base64'));
-      // console.log(`Saved exception report to: ${exceptionReportLocalPath}`); // REMOVED LOG
+      const decodedBuffer = Buffer.from(exceptionReportB64, 'base64');
+      await fsPromises.writeFile(exceptionReportLocalPath, decodedBuffer);
+      console.log(`Node.js API: Saved exception report to: ${exceptionReportLocalPath}`);
+      console.log(`Node.js API: Decoded exception report size: ${decodedBuffer.length} bytes`);
     } else {
-        // console.warn('Exception report B64 data missing from Cloud Run response.'); // REMOVED WARNING
+        console.warn('Node.js API: Exception report B64 data missing or empty from Cloud Run response.');
     }
     if (fbdiJournalB64) {
-      await fsPromises.writeFile(fbdiJournalLocalPath, Buffer.from(fbdiJournalB64, 'base64'));
-      // console.log(`Saved FBDI journal to: ${fbdiJournalLocalPath}`); // REMOVED LOG
+      const decodedBuffer = Buffer.from(fbdiJournalB64, 'base64');
+      await fsPromises.writeFile(fbdiJournalLocalPath, decodedBuffer);
+      console.log(`Node.js API: Saved FBDI journal to: ${fbdiJournalLocalPath}`);
+      console.log(`Node.js API: Decoded FBDI journal size: ${decodedBuffer.length} bytes`);
     } else {
-        // console.warn('FBDI journal B64 data missing from Cloud Run response.'); // REMOVED WARNING
+        console.warn('Node.js API: FBDI journal B64 data missing or empty from Cloud Run response.');
     }
 
 
@@ -128,35 +132,29 @@ export async function POST(request: Request) {
       fbdiJournalUrl: `/gtas-validator/download/${encodeURIComponent(fbdiJournalFilename)}`,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error calling Cloud Run Service:', error);
-    // REMOVED TEMPORARY DEBUGGING BLOCK:
-    // if (gtasTempInputPath && fsSync.existsSync(gtasTempInputPath)) {
-    //     await fsPromises.unlink(gtasTempInputPath).catch(() => {});
-    // }
-    // if (erpTempInputPath && fsSync.existsSync(erpTempInputPath)) {
-    //     await fsPromises.unlink(erpTempInputPath).catch(() => {});
-    // }
-    // if (exceptionReportLocalPath && fsSync.existsSync(exceptionReportLocalPath)) {
-    //     await fsPromises.unlink(exceptionReportLocalPath).catch(() => {});
-    // }
-    // if (fbdiJournalLocalPath && fsSync.existsSync(fbdiJournalLocalPath)) {
-    //     await fsPromises.unlink(fbdiJournalLocalPath).catch(() => {});
-    // }
-
-    return NextResponse.json({ success: false, message: error.message || 'Internal server error calling Cloud Run Service.' }, { status: 500 });
+    if (gtasTempInputPath && fsSync.existsSync(gtasTempInputPath)) {
+        await fsPromises.unlink(gtasTempInputPath).catch(() => {});
+    }
+    if (erpTempInputPath && fsSync.existsSync(erpTempInputPath)) {
+        await fsPromises.unlink(erpTempInputPath).catch(() => {});
+    }
+    // No cleanup of output files here, as we are debugging why they are not created.
+    return NextResponse.json({ success: false, message: (error as Error).message || 'Internal server error calling Cloud Run Service.' }, { status: 500 });
   } finally {
-    // TEMPORARY FILE CLEANUP: Added a short delay for downloads to complete.
-    // Files are deleted after a short timeout to allow browser to fetch them.
+    // Re-enabled the cleanup with a short delay
     const filesToClean = [gtasTempInputPath, erpTempInputPath, exceptionReportLocalPath, fbdiJournalLocalPath];
+    console.log('Node.js API: Scheduling cleanup for files:', filesToClean.filter(Boolean));
     setTimeout(async () => {
+        console.log('Node.js API: Executing delayed cleanup.');
         for (const filePath of filesToClean) {
             if (filePath && fsSync.existsSync(filePath)) {
                 try {
                     await fsPromises.unlink(filePath);
-                    // console.log(`Cleaned up temporary file: ${filePath}`); // Optional log
-                } catch (cleanupErr) {
-                    // console.error(`Error cleaning up temporary file ${filePath}:`, cleanupErr); // Optional log
+                    console.log(`Node.js API: Cleaned up temporary file: ${filePath}`);
+                } catch (_cleanupErr: unknown) {
+                    console.error(`Node.js API: Error cleaning up temporary file ${filePath}:`, _cleanupErr);
                 }
             }
         }

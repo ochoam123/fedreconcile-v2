@@ -22,13 +22,13 @@ export default function GtasValidatorPage() {
   const { isLoggedIn } = useAuth();
   const router = useRouter();
 
-  console.log('GTAS Validator Page: Component rendered. isLoggedIn:', isLoggedIn); // <--- DEBUG LOG
+  console.log('GTAS Validator Page: Component rendered. isLoggedIn:', isLoggedIn);
 
   // Redirect if not logged in
   useEffect(() => {
-    console.log('GTAS Validator Page useEffect: isLoggedIn changed to', isLoggedIn); // <--- DEBUG LOG
+    console.log('GTAS Validator Page useEffect: isLoggedIn changed to', isLoggedIn);
     if (!isLoggedIn) {
-      console.log('GTAS Validator Page: Not logged in. Redirecting to /login'); // <--- DEBUG LOG
+      console.log('GTAS Validator Page: Not logged in. Redirecting to /login');
       router.push('/login');
     }
   }, [isLoggedIn, router]);
@@ -64,7 +64,7 @@ export default function GtasValidatorPage() {
     if (!token) {
         setResults({ success: false, message: 'Authentication token not found. Please log in again.' });
         setLoading(false);
-        router.push('/login'); // Redirect if token missing
+        router.push('/login');
         return;
     }
     // --- End Security ---
@@ -86,17 +86,16 @@ export default function GtasValidatorPage() {
       const data: ValidationResults = await response.json();
       setResults(data);
 
-    } catch (error: any) {
+    } catch (error: unknown) { // <--- FIX for no-explicit-any
       console.error('Validation failed:', error);
-      setResults({ success: false, message: `Validation failed: ${error.message || 'Unknown error.'}` });
+      setResults({ success: false, message: `Validation failed: ${(error as Error).message || 'Unknown error.'}` });
     } finally {
       setLoading(false);
     }
   };
 
-  // If not logged in, render a redirect message while the useEffect handles the actual routing
   if (!isLoggedIn) {
-    console.log('GTAS Validator Page: Rendering Access Denied message.'); // <--- DEBUG LOG
+    console.log('GTAS Validator Page: Rendering Access Denied message.');
     return (
         <>
             <Header />
@@ -108,7 +107,6 @@ export default function GtasValidatorPage() {
     );
   }
 
-  // Render the GTAS Validator content only if logged in
   return (
     <>
       <Header />
