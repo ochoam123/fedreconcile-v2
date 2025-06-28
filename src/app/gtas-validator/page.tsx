@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import { useAuth } from '../../context/AuthContext';
+import { useRouter } from 'next/navigation';
 
-// Define a type for the expected validation results from the API
 interface ValidationResults {
   success: boolean;
   message: string;
@@ -16,7 +17,21 @@ export default function GtasValidatorPage() {
   const [gtasFile, setGtasFile] = useState<File | null>(null);
   const [erpFile, setErpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ValidationResults | null>(null); // Using the defined interface
+  const [results, setResults] = useState<ValidationResults | null>(null);
+
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
+
+  console.log('GTAS Validator Page: Component rendered. isLoggedIn:', isLoggedIn); // <--- DEBUG LOG
+
+  // Redirect if not logged in
+  useEffect(() => {
+    console.log('GTAS Validator Page useEffect: isLoggedIn changed to', isLoggedIn); // <--- DEBUG LOG
+    if (!isLoggedIn) {
+      console.log('GTAS Validator Page: Not logged in. Redirecting to /login'); // <--- DEBUG LOG
+      router.push('/login');
+    }
+  }, [isLoggedIn, router]);
 
   const handleGtasFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -44,10 +59,22 @@ export default function GtasValidatorPage() {
     formData.append('gtas', gtasFile);
     formData.append('erp', erpFile);
 
+    // --- Security: Include Authorization header with JWT ---
+    const token = typeof window !== 'undefined' ? localStorage.getItem('mockAuthToken') : null;
+    if (!token) {
+        setResults({ success: false, message: 'Authentication token not found. Please log in again.' });
+        setLoading(false);
+        router.push('/login'); // Redirect if token missing
+        return;
+    }
+    // --- End Security ---
+
     try {
-      // --- ACTUAL API Call to your Next.js API Route ---
       const response = await fetch('/gtas-validator/api', {
         method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
         body: formData,
       });
 
@@ -56,7 +83,7 @@ export default function GtasValidatorPage() {
         throw new Error(errorData.message || 'Server responded with an error.');
       }
 
-      const data: ValidationResults = await response.json(); // Cast to our interface
+      const data: ValidationResults = await response.json();
       setResults(data);
 
     } catch (error: any) {
@@ -67,6 +94,21 @@ export default function GtasValidatorPage() {
     }
   };
 
+  // If not logged in, render a redirect message while the useEffect handles the actual routing
+  if (!isLoggedIn) {
+    console.log('GTAS Validator Page: Rendering Access Denied message.'); // <--- DEBUG LOG
+    return (
+        <>
+            <Header />
+            <main className="flex-grow flex items-center justify-center bg-gray-50 py-16 md:py-24">
+                <div className="text-center text-gray-700">Access Denied. Redirecting to login...</div>
+            </main>
+            <Footer />
+        </>
+    );
+  }
+
+  // Render the GTAS Validator content only if logged in
   return (
     <>
       <Header />

@@ -1,117 +1,88 @@
+# gcf_gtas_validator/main.py
+from flask import Flask, request, jsonify
 import base64
 import os
-import json
 import tempfile
-import pandas as pd
-from datetime import datetime
-import functions_framework
+import json
+import logging
 
-# --- Import the new validator modules ---
-from validators import ussgl_level 
-# --- We will keep the old import for now to handle logic we haven't migrated yet ---
-from validation_logic import validate_and_reconcile, generate_exception_report, generate_fbdi_file, load_data
+# Import your core validation logic module (Changed from relative to absolute)
+import validation_logic # <--- FIXED IMPORT HERE
 
-# --- Load the NEW validation rules at startup ---
-try:
-    with open('validation_rules.json', 'r') as f:
-        validation_rules = json.load(f)
-    print(f"Successfully loaded {len(validation_rules)} validation rules.")
-except Exception as e:
-    validation_rules = []
-    print(f"CRITICAL ERROR: Could not load or parse validation_rules.json: {e}")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
-@functions_framework.http
-def gtas_validator_http(request):
+# Initialize Flask app
+app = Flask(__name__)
+
+@app.route('/', methods=['POST'])
+def gtas_validator_endpoint():
     """
-    HTTP Cloud Function that processes GTAS files.
-    This version includes CORS headers to allow requests from web browsers.
+    HTTP Endpoint for GTAS validation in Cloud Run.
     """
-    # --- START CORS FIX ---
-    # Set CORS headers for the preflight request
-    if request.method == 'OPTIONS':
-        # Allows GET, POST and OPTIONS requests from any origin with the Content-Type
-        # header and caches preflight response for 3600s
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Max-Age': '3600'
-        }
-        return ('', 204, headers)
-
-    # Set CORS headers for the main request
-    headers = {
-        'Access-Control-Allow-Origin': '*'
-    }
-    # --- END CORS FIX ---
-    
     if request.method != 'POST':
-        return ('Method Not Allowed', 405, headers)
+        return jsonify({"success": False, "message": "Method Not Allowed. Use POST."}), 405
+
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type must be application/json"}), 400
 
     request_json = request.get_json(silent=True)
-    if not request_json or 'gtas_file_b64' not in request_json:
-        return (json.dumps({"success": False, "message": '"gtas_file_b64" is required.'}), 400, headers)
+    if not request_json:
+        return jsonify({"success": False, "message": "Invalid JSON in request body."}), 400
 
-    # Setup temporary file paths
-    gtas_temp_path = tempfile.mkstemp(suffix=".csv")[1]
-    exception_output_temp_path = tempfile.mkstemp(suffix=".csv")[1]
-    fbdi_output_temp_path = tempfile.mkstemp(suffix=".csv")[1]
+    gtas_file_b64 = request_json.get('gtas_file_b64')
+    erp_file_b64 = request_json.get('erp_file_b64')
+    gtas_file_name = request_json.get('gtas_file_name', 'gtas_report.csv')
+    erp_file_name = request_json.get('erp_file_name', 'erp_balances.csv')
+
+    if not gtas_file_b64 or not erp_file_b64:
+        return jsonify({"success": False, "message": "Both gtas_file_b64 and erp_file_b64 are required."}), 400
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gtas_input_path = os.path.join(tmpdir, gtas_file_name)
+        erp_input_path = os.path.join(tmpdir, erp_file_name)
+        exception_output_path = os.path.join(tmpdir, "exception_report.xlsx")
+        fbdi_output_path = os.path.join(tmpdir, "fbdi_journal_corrections.csv")
+        
+        # Path to rules file relative to the main.py location in the deployed container
+        rules_file_path = os.path.join(os.path.dirname(__file__), "validation_rules.json")
+
+        try:
+            with open(gtas_input_path, 'wb') as f:
+                f.write(base64.b64decode(gtas_file_b64))
+            with open(erp_input_path, 'wb') as f:
+                f.write(base64.b64decode(erp_file_b64))
+
+            logging.info(f"Input files saved: {gtas_input_path}, {erp_input_path}")
+
+            validation_result = validation_logic.run_validation( # Call validation_logic
+                gtas_input_path,
+                erp_input_path,
+                exception_output_path,
+                fbdi_output_path,
+                rules_file_path
+            )
+
+            if validation_result["success"]:
+                with open(exception_output_path, 'rb') as f:
+                    exception_b64 = base64.b64encode(f.read()).decode('utf-8')
+                with open(fbdi_output_path, 'rb') as f:
+                    fbdi_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+                return jsonify({
+                    "success": True,
+                    "message": validation_result["message"],
+                    "exceptionReportB64": exception_b64,
+                    "fbdiJournalB64": fbdi_b64,
+                    "exceptionReportFileName": "exception_report.xlsx",
+                    "fbdiJournalFileName": "fbdi_journal_corrections.csv"
+                }), 200
+            else:
+                return jsonify({"success": False, "message": validation_result["message"]}), 500
+
+        except Exception as e:
+            logging.error(f"Error during GTAS validation: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"Internal server error: {e}"}), 500
     
-    try:
-        # Decode the base64 string and write to a temporary file
-        with open(gtas_temp_path, "wb") as f:
-            f.write(base64.b64decode(request_json.get('gtas_file_b64')))
-
-        gtas_df = pd.read_csv(gtas_temp_path)
-        gtas_df['row_identifier'] = gtas_df.index + 2  # Add row numbers for error reporting
-
-        # =================================================================
-        # === NEW DATA-DRIVEN VALIDATION ENGINE ===
-        # =================================================================
-        all_errors = []
-        print(f"Applying {len(validation_rules)} rules to {len(gtas_df)} GTAS rows...")
-        
-        for rule in validation_rules:
-            new_errors = []
-            validation_type = rule.get('Validation Type')
-            try:
-                if validation_type == 'USSGL-Level':
-                    new_errors = ussgl_level.validate(gtas_df, rule)
-                
-                if new_errors:
-                    all_errors.extend(new_errors)
-            except Exception as e:
-                print(f"ENGINE ERROR executing rule '{rule.get('Validation Number')}': {e}")
-        
-        print(f"Data-driven validation found {len(all_errors)} issues.")
-        
-        if all_errors:
-            exception_df = pd.DataFrame(all_errors)
-            exception_df.to_csv(exception_output_temp_path, index=False)
-        else:
-            pd.DataFrame([{"status": "No exceptions found."}]).to_csv(exception_output_temp_path, index=False)
-        
-        exception_report_b64 = None
-        if os.path.exists(exception_output_temp_path):
-            with open(exception_output_temp_path, 'rb') as f:
-                exception_report_b64 = base64.b64encode(f.read()).decode('utf-8')
-        
-        fbdi_journal_b64 = base64.b64encode(b"").decode('utf-8')
-
-        response_payload = {
-            "success": True,
-            "message": f"Validation complete. Found {len(all_errors)} potential issues.",
-            "exception_report_b64": exception_report_b64,
-            "fbdi_journal_b64": fbdi_journal_b64,
-            "exception_report_filename": f"exception_report_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv",
-            "fbdi_journal_filename": ""
-        }
-        return (json.dumps(response_payload), 200, headers)
-
-    except Exception as e:
-        print(f"Error in Cloud Function: {e}")
-        return (json.dumps({"success": False, "message": f"Server error: {e}"}), 500, headers)
-    finally:
-        for path in [gtas_temp_path, exception_output_temp_path, fbdi_output_temp_path]:
-            if os.path.exists(path):
-                os.remove(path)
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

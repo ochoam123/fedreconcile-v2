@@ -7,6 +7,8 @@ export async function GET(request: Request, { params }: { params: { filename: st
   const { filename } = params;
   const filePath = path.join(os.tmpdir(), filename);
 
+  console.log(`Download API: Attempting to serve file from: ${filePath}`); // <--- ADD THIS LOG
+
   try {
     const fileBuffer = await fs.readFile(filePath);
 
@@ -24,7 +26,7 @@ export async function GET(request: Request, { params }: { params: { filename: st
       },
     });
   } catch (error) {
-    console.error(`Error serving file ${filename}:`, error);
+    console.error(`Download API: Error serving file ${filename}:`, error); // <--- LOG ERROR HERE
     return NextResponse.json({ message: 'File not found or could not be accessed.' }, { status: 404 });
   }
 }
