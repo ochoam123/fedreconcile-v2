@@ -2,8 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict
 
-# This mapping connects a rule's "Edit Number" to the function that implements it.
-# This makes the main dispatcher clean and easy to extend.
+# Mapping of edit numbers to their corresponding functions
 USSGL_VALIDATORS = {
     "3": "check_for_missing_required_fields",
     "4": "check_canceled_tas_balance",
@@ -12,68 +11,86 @@ USSGL_VALIDATORS = {
 
 def validate(df: pd.DataFrame, rule: dict) -> List[Dict]:
     """
-    Sub-dispatcher for all 'USSGL-Level' validations.
-    It looks up the correct validation function from the map above and executes it.
+    USSGL-level validation dispatcher.
+    Ensures DataFrame has row identifiers, then runs the requested rule.
     """
+    # Add row_identifier if not present
+    if 'row_identifier' not in df.columns:
+        df = df.reset_index().rename(columns={"index": "row_identifier"})
+
     edit_number = rule.get("Edit Number")
     validator_function_name = USSGL_VALIDATORS.get(edit_number)
-    
+
     if validator_function_name:
         validator_function = globals().get(validator_function_name)
         if validator_function:
-            # We pass a copy of the dataframe to prevent unintended side effects between functions
             return validator_function(df.copy(), rule)
-            
+
     return []
 
-# --- Logic Functions Migrated from validation_logic.py's gtas_checks function ---
+# --------------------
+# Validation Functions
+# --------------------
 
 def check_for_missing_required_fields(df: pd.DataFrame, rule: dict) -> List[Dict]:
-    """Implements logic for Edit #3 (VAL0030)"""
+    """Implements Edit #3: missing required TAS or USSGL_ACCOUNT."""
     errors = []
-    # Check if the required columns exist in the DataFrame
     if 'TAS' not in df.columns or 'USSGL_ACCOUNT' not in df.columns:
-        errors.append({"row": "N/A", "error": f"Required columns 'TAS' and/or 'USSGL_ACCOUNT' are missing."})
+        errors.append({"row": "N/A", "error": "Required columns 'TAS' or 'USSGL_ACCOUNT' missing."})
         return errors
 
-    # Find rows where TAS or USSGL_ACCOUNT is null/empty
     invalid_rows = df[df['TAS'].isnull() | df['USSGL_ACCOUNT'].isnull()]
     for _, row in invalid_rows.iterrows():
-        errors.append({"row": int(row['row_identifier']), "validation_number": rule.get("Validation Number"), "severity": rule.get("Severity"), "error_message": rule.get("Edit Message")})
+        errors.append({
+            "row": int(row['row_identifier']),
+            "validation_number": rule.get("Validation Number"),
+            "severity": rule.get("Severity"),
+            "error_message": rule.get("Edit Message")
+        })
     return errors
 
 def check_canceled_tas_balance(df: pd.DataFrame, rule: dict) -> List[Dict]:
-    """Implements logic for Edit #4 (VAL0100)"""
+    """Implements Edit #4: canceled TAS should have zero balance in USSGL 101000."""
     errors = []
-    if not all(col in df.columns for col in ['TAS', 'USSGL_ACCOUNT', 'GTAS_BALANCE']):
-        return []
+    required_cols = ['TAS', 'USSGL_ACCOUNT', 'GTAS_BALANCE']
+    if not all(col in df.columns for col in required_cols):
+        errors.append({"row": "N/A", "error": f"Required columns {required_cols} missing."})
+        return errors
 
-    # Prepare columns for safe checking
     df['TAS_str'] = df['TAS'].astype(str)
     df['USSGL_ACCOUNT_str'] = df['USSGL_ACCOUNT'].astype(str)
-    # Coerce errors will turn non-numeric values into NaN (Not a Number)
     df['GTAS_BALANCE_float'] = pd.to_numeric(df['GTAS_BALANCE'], errors='coerce')
 
     invalid_rows = df[
-        (df['TAS_str'].str.startswith('X', na=False)) &
+        df['TAS_str'].str.startswith('X', na=False) &
         (df['USSGL_ACCOUNT_str'] == '101000') &
-        # Use np.isclose for safe floating point comparison
-        (np.isclose(df['GTAS_BALANCE_float'], 0) == False)
+        (~np.isclose(df['GTAS_BALANCE_float'], 0))
     ]
+
     for _, row in invalid_rows.iterrows():
-        errors.append({"row": int(row['row_identifier']), "validation_number": rule.get("Validation Number"), "severity": rule.get("Severity"), "error_message": rule.get("Edit Message")})
+        errors.append({
+            "row": int(row['row_identifier']),
+            "validation_number": rule.get("Validation Number"),
+            "severity": rule.get("Severity"),
+            "error_message": rule.get("Edit Message")
+        })
     return errors
 
 def check_advisory_for_liability_accounts(df: pd.DataFrame, rule: dict) -> List[Dict]:
-    """Implements logic for Edit #5 (VAL0110)"""
+    """Implements Edit #5: advisory checks for USSGL accounts starting with '210'."""
     errors = []
     if 'USSGL_ACCOUNT' not in df.columns:
-        return []
-        
+        errors.append({"row": "N/A", "error": "Column 'USSGL_ACCOUNT' missing."})
+        return errors
+
     df['USSGL_ACCOUNT_str'] = df['USSGL_ACCOUNT'].astype(str)
-    # Find rows where the USSGL account starts with '210'
     advisory_rows = df[df['USSGL_ACCOUNT_str'].str.startswith('210', na=False)]
-    
+
     for _, row in advisory_rows.iterrows():
-        errors.append({"row": int(row['row_identifier']), "validation_number": rule.get("Validation Number"), "severity": rule.get("Severity"), "error_message": rule.get("Edit Message")})
+        errors.append({
+            "row": int(row['row_identifier']),
+            "validation_number": rule.get("Validation Number"),
+            "severity": rule.get("Severity"),
+            "error_message": rule.get("Edit Message")
+        })
     return errors

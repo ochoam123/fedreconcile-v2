@@ -1,6 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
+# ─────────────
+# Node / Yarn / Next.js
+# ─────────────
 /node_modules
 /.pnp
 .pnp.*
@@ -10,35 +10,87 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# Next.js build artifacts
 /.next/
 /out/
 
-# production
+# Production build outputs
 /build
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Yarn / NPM / PNPM debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Misc files
+.DS_Store
+*.pem
 
-# vercel
-.vercel
+# Code coverage output
+/coverage
 
-# typescript
+# TypeScript build info
 *.tsbuildinfo
 next-env.d.ts
 
-# Google Cloud Credentials
-google-credentials.json
+# Environment variables (env files)
+.env*
+
+# Vercel config
+.vercel
+
+# Google Cloud credentials (JSON service accounts)
+/google-credentials.json
+
+# ─────────────
+# Python / Virtual environments
+# ─────────────
+# Python virtual environment
+.venv/
+venv/
+
+# Python bytecode and metadata
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Python distribution / packaging
+*.egg-info/
+.eggs/
+dist/
+build/
+*.manifest
+
+# ─────────────
+# Editor / IDE config (optional but recommended)
+# ─────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# macOS folder attributes
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Spotlight files
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─────────────
+# End of file
+# ─────────────

@@ -9,9 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "form-data": "^4.0.3",
     "google-auth-library": "^10.1.0",
     "lucide-react": "^0.523.0",
     "next": "15.3.4",
+    "node-fetch": "^3.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

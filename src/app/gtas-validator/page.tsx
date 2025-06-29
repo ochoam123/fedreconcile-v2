@@ -1,188 +1,132 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
+import React, { useState } from 'react';
 
-import { useState, useEffect } from 'react';
-import Header from '../../components/Header';
-import Footer from '../../components/Footer';
-import { useAuth } from '../../context/AuthContext';
-import { useRouter } from 'next/navigation';
-
-interface ValidationResults {
-  success: boolean;
-  message: string;
-  exceptionReportUrl?: string;
-  fbdiJournalUrl?: string;
-}
-
-export default function GtasValidatorPage() {
-  const [gtasFile, setGtasFile] = useState<File | null>(null);
+export default function GTASValidatorPage() {
   const [erpFile, setErpFile] = useState<File | null>(null);
+  const [gtasFile, setGtasFile] = useState<File | null>(null);
+  const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ValidationResults | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const { isLoggedIn } = useAuth();
-  const router = useRouter();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResult(null);
 
-  console.log('GTAS Validator Page: Component rendered. isLoggedIn:', isLoggedIn);
-
-  // Redirect if not logged in
-  useEffect(() => {
-    console.log('GTAS Validator Page useEffect: isLoggedIn changed to', isLoggedIn);
-    if (!isLoggedIn) {
-      console.log('GTAS Validator Page: Not logged in. Redirecting to /login');
-      router.push('/login');
-    }
-  }, [isLoggedIn, router]);
-
-  const handleGtasFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setGtasFile(event.target.files[0]);
-    }
-  };
-
-  const handleErpFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setErpFile(event.target.files[0]);
-    }
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!gtasFile || !erpFile) {
-      alert('Please select both GTAS and ERP files.');
+    if (!erpFile || !gtasFile) {
+      setError('Please select both ERP and GTAS files.');
       return;
     }
 
-    setLoading(true);
-    setResults(null);
-
     const formData = new FormData();
-    formData.append('gtas', gtasFile);
-    formData.append('erp', erpFile);
+    formData.append('erp_file', erpFile);
+    formData.append('gtas_file', gtasFile);
 
-    // --- Security: Include Authorization header with JWT ---
-    const token = typeof window !== 'undefined' ? localStorage.getItem('mockAuthToken') : null;
-    if (!token) {
-        setResults({ success: false, message: 'Authentication token not found. Please log in again.' });
-        setLoading(false);
-        router.push('/login');
-        return;
-    }
-    // --- End Security ---
-
+    setLoading(true);
     try {
       const response = await fetch('/gtas-validator/api', {
         method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
         body: formData,
       });
 
+      const data = await response.json();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Server responded with an error.');
+        setError(data.error || 'Unknown error occurred.');
+      } else {
+        setResult(data);
       }
-
-      const data: ValidationResults = await response.json();
-      setResults(data);
-
-    } catch (error: unknown) { // <--- FIX for no-explicit-any
-      console.error('Validation failed:', error);
-      // Ensure error is handled safely
-      setResults({ success: false, message: (error instanceof Error ? error.message : String(error)) || 'Unknown error.' });
+    } catch (err) {
+      console.error('Submission error:', err);
+      setError('Network or server error.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!isLoggedIn) {
-    console.log('GTAS Validator Page: Rendering Access Denied message.');
-    return (
-        <>
-            <Header />
-            <main className="flex-grow flex items-center justify-center bg-gray-50 py-16 md:py-24">
-                <div className="text-center text-gray-700">Access Denied. Redirecting to login...</div>
-            </main>
-            <Footer />
-        </>
-    );
-  }
+  const downloadFile = (filePath: string, filename: string) => {
+    const url = `/gtas-validator/download/${encodeURIComponent(filename)}`;
+    window.open(url, '_blank');
+  };
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-gray-50 py-16 md:py-24">
-        <div className="container mx-auto px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 mb-6">
-            GTAS Validator
-          </h1>
-          <p className="text-lg text-gray-600 mb-10 max-w-2xl mx-auto">
-            Upload your GTAS and ERP balance files to automatically identify discrepancies and generate correction reports.
+    <main className="max-w-3xl mx-auto p-8">
+      <h1 className="text-3xl font-bold mb-6 text-center">GTAS Validator</h1>
+
+      <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-4">
+        <label className="font-semibold">Upload ERP Trial Balances CSV:</label>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => setErpFile(e.target.files ? e.target.files[0] : null)}
+          className="border p-2"
+        />
+
+        <label className="font-semibold">Upload GTAS Output CSV:</label>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => setGtasFile(e.target.files ? e.target.files[0] : null)}
+          className="border p-2"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-600 text-white font-semibold py-3 px-6 rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Validating...' : 'Validate Files'}
+        </button>
+      </form>
+
+      {error && (
+        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
+          <p>{error}</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="bg-green-100 text-green-800 p-4 rounded">
+          <h2 className="text-2xl font-bold mb-2">
+            Validation {result.is_valid ? 'Passed ✅' : 'Failed ❌'}
+          </h2>
+          <p className="mb-2">
+            Rows processed: {result.summary.total_rows}, Errors found: {result.summary.errors}
           </p>
 
-          <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md max-w-xl mx-auto">
-            <div className="mb-6 text-left">
-              <label htmlFor="gtasFile" className="block text-gray-700 text-sm font-bold mb-2">
-                GTAS Report File (CSV/XLSX)
-              </label>
-              <input
-                type="file"
-                id="gtasFile"
-                accept=".csv,.xlsx"
-                onChange={handleGtasFileChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              />
-            </div>
-            <div className="mb-8 text-left">
-              <label htmlFor="erpFile" className="block text-gray-700 text-sm font-bold mb-2">
-                ERP Balances File (CSV/XML)
-              </label>
-              <input
-                type="file"
-                id="erpFile"
-                accept=".csv,.xml"
-                onChange={handleErpFileChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              />
-            </div>
-            <button
-              type="submit"
-              className="bg-[#3A7CA5] hover:bg-[#2A6C95] text-white font-bold py-3 px-8 rounded-full text-lg transition duration-300 w-full"
-              disabled={loading}
-            >
-              {loading ? 'Processing...' : 'Run Validation'}
-            </button>
-          </form>
-
-          {results && (
-            <div className={`mt-10 p-6 rounded-lg shadow-md ${results.success ? 'bg-green-50' : 'bg-red-50'} max-w-xl mx-auto`}>
-              <h3 className={`text-xl font-bold mb-4 ${results.success ? 'text-green-800' : 'text-red-800'}`}>
-                {results.success ? 'Validation Successful!' : 'Validation Failed'}
-              </h3>
-              <p className={`mb-4 ${results.success ? 'text-green-700' : 'text-red-700'}`}>{results.message}</p>
-              {results.success && (
-                <div className="flex flex-col space-y-4">
-                  <a
-                    href={results.exceptionReportUrl}
-                    download="exception_report.xlsx"
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full inline-flex items-center justify-center transition duration-300"
-                  >
-                    Download Exception Report
-                  </a>
-                  <a
-                    href={results.fbdiJournalUrl}
-                    download="fbdi_journal_corrections.csv"
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full inline-flex items-center justify-center transition duration-300"
-                  >
-                  Download FBDI Journal Corrections
-                  </a>
-                </div>
-              )}
+          {!result.is_valid && result.errors.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-1">Errors:</h3>
+              <ul className="list-disc list-inside mb-4">
+                {result.errors.map((err: any, idx: number) => (
+                  <li key={idx}>
+                    Row {err.row}: {err.message || err.error_message}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
+
+          <div className="flex flex-col gap-4">
+            {result.fbdi_file && (
+              <button
+                onClick={() => downloadFile(result.fbdi_file, 'fbdi_journal_corrections.csv')}
+                className="bg-gray-700 text-white font-semibold py-2 px-4 rounded hover:bg-gray-800"
+              >
+                Download Corrected FBDI
+              </button>
+            )}
+            {result.exception_file && (
+              <button
+                onClick={() => downloadFile(result.exception_file, 'exception_report.csv')}
+                className="bg-gray-700 text-white font-semibold py-2 px-4 rounded hover:bg-gray-800"
+              >
+                Download Exception Report
+              </button>
+            )}
+          </div>
         </div>
-      </main>
-      <Footer />
-    </>
+      )}
+    </main>
   );
 }
