@@ -4,17 +4,18 @@ import fs from 'fs/promises';
 import os from 'os';
 import * as fsSync from 'fs';
 
+// THIS IS THE CORRECTED FUNCTION SIGNATURE FOR NEXT.JS 15+
 export async function GET(
   request: Request,
-  context: { params: { filename: string } }
+  { params }: { params: { filename:string } }
 ) {
-  const { filename } = context.params;
+  // We now get the filename directly from the destructured params
+  const filename = params.filename;
   const filePath = path.join(os.tmpdir(), filename);
 
   console.log(`Download API: Attempting to serve file from: ${filePath}`);
 
   try {
-    // Check if file exists before trying to read it
     if (!fsSync.existsSync(filePath)) {
       console.error(`Download API: File does NOT exist at path: ${filePath}`);
       return NextResponse.json({ message: 'File not found on server.' }, { status: 404 });
