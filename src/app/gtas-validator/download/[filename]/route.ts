@@ -2,23 +2,23 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
-import * as fsSync from 'fs'; // <--- NEW: Import fsSync for existsSync
+import * as fsSync from 'fs';
 
-export async function GET(request: Request, { params }: { params: { filename: string } }) {
-  const { filename } = params;
+// Change: Access params from a 'context' object
+export async function GET(request: Request, context: { params: { filename: string } }) { // <--- FIXED SIGNATURE
+  const { filename } = context.params; // <--- Access params from context
   const filePath = path.join(os.tmpdir(), filename);
 
   console.log(`Download API: Attempting to serve file from: ${filePath}`);
 
   try {
-    // Check if file exists before trying to read it
-    if (!fsSync.existsSync(filePath)) { // <--- NEW: Add this check
-        console.error(`Download API: File does NOT exist at path: ${filePath}`); // <--- NEW: Log if file missing
+    if (!fsSync.existsSync(filePath)) {
+        console.error(`Download API: File does NOT exist at path: ${filePath}`);
         return NextResponse.json({ message: 'File not found on server.' }, { status: 404 });
     }
 
     const fileBuffer = await fs.readFile(filePath);
-    console.log(`Download API: Successfully read file: ${filePath}`); // <--- NEW: Log successful read
+    console.log(`Download API: Successfully read file: ${filePath}`);
 
     let mimeType = 'application/octet-stream';
     if (filename.endsWith('.xlsx')) {
@@ -35,7 +35,6 @@ export async function GET(request: Request, { params }: { params: { filename: st
     });
   } catch (error) {
     console.error(`Download API: Error serving file ${filename}:`, error);
-    // Explicitly check for ENOENT if the error type allows (though existsSync should prevent this specific one)
     if (error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
         return NextResponse.json({ message: 'File not found on server (ENOENT).' }, { status: 404 });
     }
