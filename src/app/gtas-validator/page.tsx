@@ -88,7 +88,8 @@ export default function GtasValidatorPage() {
 
     } catch (error: unknown) { // <--- FIX for no-explicit-any
       console.error('Validation failed:', error);
-      setResults({ success: false, message: `Validation failed: ${(error as Error).message || 'Unknown error.'}` });
+      // Ensure error is handled safely
+      setResults({ success: false, message: (error instanceof Error ? error.message : String(error)) || 'Unknown error.' });
     } finally {
       setLoading(false);
     }
@@ -173,7 +174,7 @@ export default function GtasValidatorPage() {
                     download="fbdi_journal_corrections.csv"
                     className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full inline-flex items-center justify-center transition duration-300"
                   >
-                    Download FBDI Journal Corrections
+                  Download FBDI Journal Corrections
                   </a>
                 </div>
               )}

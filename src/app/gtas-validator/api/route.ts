@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import * as fsPromises from 'fs/promises';
-import * as fsSync from 'fs';
+import * as fsSync from 'fs'; // For synchronous operations like existsSync
 import os from 'os';
 import { verifyMockJwt } from '../../../lib/jwt';
 import { GoogleAuth } from 'google-auth-library';
@@ -132,16 +132,25 @@ export async function POST(request: Request) {
       fbdiJournalUrl: `/gtas-validator/download/${encodeURIComponent(fbdiJournalFilename)}`,
     });
 
-  } catch (error: unknown) {
+  } catch (error: unknown) { // Use unknown for error type
     console.error('Error calling Cloud Run Service:', error);
+    // Attempt to clean up input files on error
     if (gtasTempInputPath && fsSync.existsSync(gtasTempInputPath)) {
         await fsPromises.unlink(gtasTempInputPath).catch(() => {});
     }
     if (erpTempInputPath && fsSync.existsSync(erpTempInputPath)) {
         await fsPromises.unlink(erpTempInputPath).catch(() => {});
     }
-    // No cleanup of output files here, as we are debugging why they are not created.
-    return NextResponse.json({ success: false, message: (error as Error).message || 'Internal server error calling Cloud Run Service.' }, { status: 500 });
+    // No cleanup of output files here, as they might not have been created or written to.
+
+    // Return a structured error response
+    let errorMessage = 'Internal server error calling Cloud Run Service.';
+    if (error instanceof Error) {
+        errorMessage = error.message;
+    } else if (typeof error === 'string') {
+        errorMessage = error;
+    }
+    return NextResponse.json({ success: false, message: errorMessage }, { status: 500 });
   } finally {
     // Re-enabled the cleanup with a short delay
     const filesToClean = [gtasTempInputPath, erpTempInputPath, exceptionReportLocalPath, fbdiJournalLocalPath];
@@ -153,7 +162,7 @@ export async function POST(request: Request) {
                 try {
                     await fsPromises.unlink(filePath);
                     console.log(`Node.js API: Cleaned up temporary file: ${filePath}`);
-                } catch (_cleanupErr: unknown) {
+                } catch (_cleanupErr: unknown) { // Use _cleanupErr for unused variable, type unknown
                     console.error(`Node.js API: Error cleaning up temporary file ${filePath}:`, _cleanupErr);
                 }
             }
